@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests python-telegram-bot==21.4
+          pip install requests python-telegram-bot==21.4 beautifulsoup4 lxml
 
       - name: Run F95 Monitor
         env:
