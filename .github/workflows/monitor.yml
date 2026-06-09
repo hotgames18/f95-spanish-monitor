@@ -2,8 +2,8 @@ name: F95 Spanish Monitor
 
 on:
   schedule:
-    - cron: '*/15 * * * *'    # Cada 15 minutos
-  workflow_dispatch:          # Para ejecutar manualmente
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   monitor:
