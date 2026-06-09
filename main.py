@@ -52,15 +52,18 @@ def check_updates():
         for item in root.findall(".//item"):
             title_elem = item.find("title")
             link_elem = item.find("link")
-            if not title_elem or not link_elem:
+            
+            if title_elem is None or link_elem is None:
                 continue
                 
-            title = title_elem.text.strip()
-            link = link_elem.text
+            title = title_elem.text.strip() if title_elem.text else ""
+            link = link_elem.text if link_elem.text else ""
+            
+            if not link or post_id in seen_posts or not title:
+                continue
+                
             post_id = link.split('.')[-1] if '.' in link else ""
             
-            if post_id in seen_posts or not title:
-                continue
             if not any(k in title.lower() for k in KEYWORDS):
                 continue
                 
