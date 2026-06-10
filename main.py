@@ -25,9 +25,7 @@ def get_thread_details(thread_url):
             image_url = img.get('src') or img.get('content')
         
         text_lower = soup.get_text().lower()
-        
-        spanish_keywords = ["spanish", "español", "castellano", "españa", "traducido al español", "parche español"]
-        has_spanish = any(kw in text_lower for kw in spanish_keywords)
+        has_spanish = any(kw in text_lower for kw in ["spanish", "español", "castellano", "traducido al español", "parche español"])
         
         version_match = re.search(r'v?(\d+\.\d+(?:\.\d+)?)', text_lower)
         version = version_match.group(0) if version_match else "Desconocida"
@@ -37,26 +35,25 @@ def get_thread_details(thread_url):
         return False, "Desconocida", None
 
 def send_notification(title, link, version, image_url):
-    try:
-        msg = f"<b>🎮 Nuevo/Actualizado en Español</b>\n\n"
-        msg += f"<b>{title}</b>\n"
-        msg += f"📌 Versión: {version}\n\n"
-        msg += f"🔗 <a href='{link}'>Abrir en F95Zone</a>"
-        
-        time.sleep(2)   # Delay importante
-        
-        if image_url and image_url.startswith('http'):
-            bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML')
-        else:
-            bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML')
-        
-        print(f"✅ Enviado correctamente: {title[:60]}")
-        time.sleep(1.5)
-        return True
-    except Exception as e:
-        print(f"❌ Error enviando: {e}")
-        time.sleep(4)
-        return False
+    for attempt in range(3):  # 3 intentos
+        try:
+            msg = f"<b>🎮 Nuevo/Actualizado en Español</b>\n\n"
+            msg += f"<b>{title}</b>\n"
+            msg += f"📌 Versión: {version}\n\n"
+            msg += f"🔗 <a href='{link}'>Abrir en F95Zone</a>"
+            
+            if image_url:
+                bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML')
+            else:
+                bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML')
+            
+            print(f"✅ Enviado correctamente: {title[:70]}")
+            time.sleep(3)  # Delay largo entre mensajes
+            return True
+        except Exception as e:
+            print(f"❌ Intento {attempt+1} fallido: {e}")
+            time.sleep(5)
+    return False
 
 def check_updates():
     try:
@@ -89,12 +86,12 @@ def check_updates():
                 if send_notification(title, link, version, image_url):
                     seen_posts.add(post_id)
                     count += 1
-                
+                    
         print(f"✅ Revisión terminada. Encontrados {count} juegos en español.")
         
     except Exception as e:
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español - VERSIÓN FINAL ESTABLE v3")
+    print("🚀 Monitor F95 Español - VERSIÓN FINAL ESTABLE v4")
     check_updates()
