@@ -11,25 +11,38 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 seen_posts = set()
 
-def send_telegram_message(text):
-    """Envía mensaje usando API oficial de Telegram"""
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True
-    }
+def send_rich_message(title, link, version, image_url=None):
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print("✅ Mensaje enviado a Telegram")
-            return True
+        msg = f"<b>🎮 Nuevo/Actualizado en Español</b>\n\n"
+        msg += f"<b>{title}</b>\n"
+        msg += f"📌 Versión: <b>{version}</b>\n\n"
+        msg += f"🔗 <a href='{link}'>Abrir Hilo en F95Zone</a>"
+        
+        if image_url and image_url.startswith('http'):
+            url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+            payload = {
+                "chat_id": CHAT_ID,
+                "photo": image_url,
+                "caption": msg,
+                "parse_mode": "HTML"
+            }
+            response = requests.post(url, json=payload, timeout=15)
+            if response.status_code == 200:
+                print(f"✅ Enviado con imagen: {title[:60]}")
+                return True
         else:
-            print(f"❌ Error Telegram API: {response.text}")
-            return False
+            # Si no hay imagen, envía solo texto
+            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+            payload = {
+                "chat_id": CHAT_ID,
+                "text": msg,
+                "parse_mode": "HTML"
+            }
+            requests.post(url, json=payload, timeout=10)
+            print(f"✅ Enviado sin imagen: {title[:60]}")
+            return True
     except Exception as e:
-        print(f"❌ Error de conexión: {e}")
+        print(f"❌ Error enviando: {e}")
         return False
 
 def get_thread_details(thread_url):
@@ -38,21 +51,26 @@ def get_thread_details(thread_url):
         r = requests.get(thread_url, headers=headers, timeout=20)
         soup = BeautifulSoup(r.text, 'html.parser')
         
+        # Miniatura / Imagen del juego
+        image_url = None
+        img = soup.find('img', class_='bbImage') or soup.find('meta', property='og:image')
+        if img:
+            image_url = img.get('src') or img.get('content')
+        
         text_lower = soup.get_text().lower()
         
-        keywords = ["spanish", "español", "castellano", "traducido al español", "parche español"]
-        has_spanish = any(kw in text_lower for kw in keywords)
+        has_spanish = any(kw in text_lower for kw in ["spanish", "español", "castellano", "traducido al español", "parche español"])
         
         version_match = re.search(r'v?(\d+\.\d+(?:\.\d+)?)', text_lower)
         version = version_match.group(0) if version_match else "Desconocida"
         
-        return has_spanish, version
+        return has_spanish, version, image_url
     except:
-        return False, "Desconocida"
+        return False, "Desconocida", None
 
 def check_updates():
     try:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone...")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando Latest Updates...")
         r = requests.get(
             "https://f95zone.to/sam/latest_alpha/latest_data.php?cmd=rss&cat=games&rows=60",
             timeout=25,
@@ -73,16 +91,15 @@ def check_updates():
             if post_id in seen_posts:
                 continue
 
-            print(f"🔍 Analizando: {title[:80]}...")
-            has_spanish, version = get_thread_details(link)
+            print(f"🔍 Analizando: {title[:75]}...")
+            has_spanish, version, image_url = get_thread_details(link)
             
             if has_spanish:
                 print(f"🎯 ¡ESPAÑOL DETECTADO!: {title}")
-                msg = f"<b>🎮 Nuevo/Actualizado en Español</b>\n\n<b>{title}</b>\n📌 Versión: {version}\n\n🔗 <a href='{link}'>Abrir en F95</a>"
-                send_telegram_message(msg)
+                send_rich_message(title, link, version, image_url)
                 seen_posts.add(post_id)
                 count += 1
-                time.sleep(3)
+                time.sleep(3)   # Delay entre mensajes
                 
         print(f"✅ Revisión terminada. Encontrados {count} juegos en español.")
         
@@ -90,6 +107,6 @@ def check_updates():
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español - API Oficial de Telegram")
-    send_telegram_message("🧪 TEST - Sistema usando API Oficial de Telegram iniciado.")
+    print("🚀 Monitor F95 Español - Versión con Miniaturas")
+    send_rich_message("🧪 TEST - Monitor con imágenes activado", "https://f95zone.to", "v1.0")
     check_updates()
