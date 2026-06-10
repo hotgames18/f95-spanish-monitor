@@ -2,9 +2,11 @@ import requests
 import os
 from datetime import datetime
 from telegram import Bot
+import asyncio
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 import re
+import time
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -24,7 +26,6 @@ def get_thread_details(thread_url):
             image_url = img.get('src') or img.get('content')
         
         text_lower = soup.get_text().lower()
-        
         spanish_keywords = ["spanish", "español", "castellano", "españa", "traducido al español", "parche español"]
         has_spanish = any(kw in text_lower for kw in spanish_keywords)
         
@@ -43,12 +44,17 @@ def send_notification(title, link, version, image_url):
         msg += f"🔗 <a href='{link}'>Abrir en F95Zone</a>"
         
         if image_url:
-            bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML')
+            asyncio.run(bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML'))
         else:
-            bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML')
-        print(f"✅ Notificación enviada: {title[:60]}")
+            asyncio.run(bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML'))
+        
+        print(f"✅ Enviado correctamente: {title[:60]}")
+        time.sleep(1.5)  # Delay importante para evitar rate limit
+        return True
     except Exception as e:
-        print(f"❌ Error enviando notificación: {e}")
+        print(f"❌ Error enviando {title[:50]}: {e}")
+        time.sleep(3)  # Espera más larga si falla
+        return False
 
 def check_updates():
     try:
@@ -78,9 +84,9 @@ def check_updates():
             
             if has_spanish:
                 print(f"🎯 ¡ESPAÑOL DETECTADO!: {title}")
-                send_notification(title, link, version, image_url)
-                seen_posts.add(post_id)
-                count += 1
+                if send_notification(title, link, version, image_url):
+                    seen_posts.add(post_id)
+                    count += 1
                 
         print(f"✅ Revisión terminada. Encontrados {count} juegos en español.")
         
@@ -88,5 +94,5 @@ def check_updates():
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español vAvanzada - Corregida")
+    print("🚀 Monitor F95 Español vAvanzada - Versión Estable")
     check_updates()
