@@ -2,7 +2,6 @@ import requests
 import os
 from datetime import datetime
 from telegram import Bot
-import asyncio
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 import re
@@ -16,16 +15,18 @@ seen_posts = set()
 
 def get_thread_details(thread_url):
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         r = requests.get(thread_url, headers=headers, timeout=20)
         soup = BeautifulSoup(r.text, 'html.parser')
         
+        # Imagen
         image_url = None
         img = soup.find('img', class_='bbImage') or soup.find('meta', property='og:image')
         if img:
             image_url = img.get('src') or img.get('content')
         
         text_lower = soup.get_text().lower()
+        
         spanish_keywords = ["spanish", "español", "castellano", "españa", "traducido al español", "parche español"]
         has_spanish = any(kw in text_lower for kw in spanish_keywords)
         
@@ -43,17 +44,18 @@ def send_notification(title, link, version, image_url):
         msg += f"📌 Versión: {version}\n\n"
         msg += f"🔗 <a href='{link}'>Abrir en F95Zone</a>"
         
-        if image_url:
-            asyncio.run(bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML'))
-        else:
-            asyncio.run(bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML'))
+        time.sleep(1.2)  # Delay para evitar rate limit
         
-        print(f"✅ Enviado correctamente: {title[:60]}")
-        time.sleep(1.5)  # Delay importante para evitar rate limit
+        if image_url:
+            bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML')
+        else:
+            bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML')
+        
+        print(f"✅ Enviado correctamente: {title[:70]}")
         return True
     except Exception as e:
-        print(f"❌ Error enviando {title[:50]}: {e}")
-        time.sleep(3)  # Espera más larga si falla
+        print(f"❌ Error enviando mensaje: {e}")
+        time.sleep(3)
         return False
 
 def check_updates():
@@ -87,6 +89,7 @@ def check_updates():
                 if send_notification(title, link, version, image_url):
                     seen_posts.add(post_id)
                     count += 1
+                time.sleep(2)  # Delay entre envíos
                 
         print(f"✅ Revisión terminada. Encontrados {count} juegos en español.")
         
@@ -94,5 +97,5 @@ def check_updates():
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español vAvanzada - Versión Estable")
+    print("🚀 Monitor F95 Español - Versión FINAL ESTABLE")
     check_updates()
