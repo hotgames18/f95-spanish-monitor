@@ -19,7 +19,7 @@ def get_thread_details(thread_url):
         r = requests.get(thread_url, headers=headers, timeout=20)
         soup = BeautifulSoup(r.text, 'html.parser')
         
-        # Imagen
+        # Imagen de portada
         image_url = None
         img = soup.find('img', class_='bbImage') or soup.find('meta', property='og:image')
         if img:
@@ -44,17 +44,17 @@ def send_notification(title, link, version, image_url):
         msg += f"📌 Versión: {version}\n\n"
         msg += f"🔗 <a href='{link}'>Abrir en F95Zone</a>"
         
-        time.sleep(1.2)  # Delay para evitar rate limit
+        time.sleep(1.5)  # Evita rate limit de Telegram
         
         if image_url:
             bot.send_photo(chat_id=CHAT_ID, photo=image_url, caption=msg, parse_mode='HTML')
         else:
             bot.send_message(chat_id=CHAT_ID, text=msg, parse_mode='HTML')
         
-        print(f"✅ Enviado correctamente: {title[:70]}")
+        print(f"✅ Enviado: {title[:70]}")
         return True
     except Exception as e:
-        print(f"❌ Error enviando mensaje: {e}")
+        print(f"❌ Error enviando: {e}")
         time.sleep(3)
         return False
 
@@ -89,7 +89,7 @@ def check_updates():
                 if send_notification(title, link, version, image_url):
                     seen_posts.add(post_id)
                     count += 1
-                time.sleep(2)  # Delay entre envíos
+                time.sleep(2)
                 
         print(f"✅ Revisión terminada. Encontrados {count} juegos en español.")
         
@@ -97,5 +97,5 @@ def check_updates():
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español - Versión FINAL ESTABLE")
+    print("🚀 Monitor F95 Español - VERSIÓN FINAL ESTABLE")
     check_updates()
