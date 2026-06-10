@@ -11,12 +11,12 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 seen_posts = set()
 
-def send_rich_message(title, link, version, image_url=None):
+def send_rich_notification(title, link, version, image_url=None):
     try:
         msg = f"<b>🎮 Nuevo/Actualizado en Español</b>\n\n"
         msg += f"<b>{title}</b>\n"
         msg += f"📌 Versión: <b>{version}</b>\n\n"
-        msg += f"🔗 <a href='{link}'>Abrir Hilo en F95Zone</a>"
+        msg += f"🔗 <a href='{link}'>Abrir en F95Zone</a>"
         
         if image_url and image_url.startswith('http'):
             url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
@@ -26,12 +26,9 @@ def send_rich_message(title, link, version, image_url=None):
                 "caption": msg,
                 "parse_mode": "HTML"
             }
-            response = requests.post(url, json=payload, timeout=15)
-            if response.status_code == 200:
-                print(f"✅ Enviado con imagen: {title[:60]}")
-                return True
+            requests.post(url, json=payload, timeout=15)
+            print(f"✅ Enviado con imagen: {title[:60]}")
         else:
-            # Si no hay imagen, envía solo texto
             url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
             payload = {
                 "chat_id": CHAT_ID,
@@ -40,7 +37,9 @@ def send_rich_message(title, link, version, image_url=None):
             }
             requests.post(url, json=payload, timeout=10)
             print(f"✅ Enviado sin imagen: {title[:60]}")
-            return True
+        
+        time.sleep(2.5)
+        return True
     except Exception as e:
         print(f"❌ Error enviando: {e}")
         return False
@@ -51,9 +50,9 @@ def get_thread_details(thread_url):
         r = requests.get(thread_url, headers=headers, timeout=20)
         soup = BeautifulSoup(r.text, 'html.parser')
         
-        # Miniatura / Imagen del juego
+        # Extraer imagen (miniatura)
         image_url = None
-        img = soup.find('img', class_='bbImage') or soup.find('meta', property='og:image')
+        img = soup.find('img', {'class': 'bbImage'}) or soup.find('meta', {'property': 'og:image'})
         if img:
             image_url = img.get('src') or img.get('content')
         
@@ -70,7 +69,7 @@ def get_thread_details(thread_url):
 
 def check_updates():
     try:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando Latest Updates...")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando...")
         r = requests.get(
             "https://f95zone.to/sam/latest_alpha/latest_data.php?cmd=rss&cat=games&rows=60",
             timeout=25,
@@ -96,17 +95,17 @@ def check_updates():
             
             if has_spanish:
                 print(f"🎯 ¡ESPAÑOL DETECTADO!: {title}")
-                send_rich_message(title, link, version, image_url)
+                send_rich_notification(title, link, version, image_url)
                 seen_posts.add(post_id)
                 count += 1
-                time.sleep(3)   # Delay entre mensajes
+                time.sleep(3)
                 
-        print(f"✅ Revisión terminada. Encontrados {count} juegos en español.")
+        print(f"✅ Revisión terminada. Encontrados {count} juegos.")
         
     except Exception as e:
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
     print("🚀 Monitor F95 Español - Versión con Miniaturas")
-    send_rich_message("🧪 TEST - Monitor con imágenes activado", "https://f95zone.to", "v1.0")
+    send_rich_notification("TEST - Monitor con imágenes", "https://f95zone.to", "v1.0")
     check_updates()
