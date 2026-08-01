@@ -40,7 +40,7 @@ def send_message(text):
             "chat_id": CHAT_ID,
             "text": text,
             "parse_mode": "HTML",
-            "disable_web_page_preview": True
+            "disable_web_page_preview": False  # <--- CAMBIADO A False PARA VER LA CARÁTULA
         }
         requests.post(url, json=payload, timeout=10)
         print("✅ Enviado")
@@ -58,9 +58,14 @@ def get_thread_details(thread_url):
         soup = BeautifulSoup(r.text, 'html.parser')
         text_lower = soup.get_text().lower()
         
+        # 1. Detección de Español
         has_spanish = any(kw in text_lower for kw in ["spanish", "español", "castellano", "traducido al español", "parche español"])
+        
+        # 2. Detección de Android
+        # Buscamos la palabra "android" o la extensión ".apk" en el texto de la página
         has_android = ("android" in text_lower) or (".apk" in text_lower)
         
+        # 3. Detección de Versión
         version_match = re.search(r'v?(\d+\.\d+(?:\.\d+)?)', text_lower)
         version = version_match.group(0) if version_match else "Desconocida"
         
@@ -91,6 +96,7 @@ def check_updates():
             print(f"🔍 Analizando: {title[:80]}...")
             has_spanish, has_android, version = get_thread_details(link)
             
+            # Condición: Debe tener español Y estar disponible para Android
             if has_spanish and has_android:
                 print(f"🎯 ¡ESPAÑOL + ANDROID DETECTADO!: {title}")
                 msg = f"<b>📱 Nuevo/Actualizado en Español (Android)</b>\n\n"
@@ -109,5 +115,5 @@ def check_updates():
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español + Android - Versión con Memoria")
+    print("🚀 Monitor F95 Español + Android - Versión con Memoria y Carátulas")
     check_updates()
