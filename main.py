@@ -1,5 +1,6 @@
 import requests
 import os
+import json
 from datetime import datetime
 import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
@@ -8,7 +9,29 @@ import time
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-seen_posts = set()
+MEMORY_FILE = "memoria.json"
+MAX_MEMORY = 500  # Guardaremos solo los últimos 500 juegos para no hacer el archivo gigante
+
+# --- FUNCIONES DE MEMORIA ---
+def load_seen():
+    """Carga los IDs ya enviados desde el archivo memoria.json"""
+    try:
+        with open(MEMORY_FILE, "r") as f:
+            data = json.load(f)
+            return set(data)
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Si el archivo no existe o está vacío, empezamos con set vacío
+        return set()
+
+def save_seen(seen_set):
+    """Guarda los IDs en el archivo memoria.json"""
+    # Convertimos el set a lista y nos quedamos solo con los últimos MAX_MEMORY elementos
+    seen_list = list(seen_set)[-MAX_MEMORY:]
+    with open(MEMORY_FILE, "w") as f:
+        json.dump(seen_list, f)
+
+# Cargamos la memoria al arrancar
+seen_posts = load_seen()
 
 def send_message(text):
     try:
@@ -17,7 +40,7 @@ def send_message(text):
             "chat_id": CHAT_ID,
             "text": text,
             "parse_mode": "HTML",
-            "disable_web_page_page": True
+            "disable_web_page_preview": True
         }
         requests.post(url, json=payload, timeout=10)
         print("✅ Enviado")
@@ -30,20 +53,14 @@ def send_message(text):
 
 def get_thread_details(thread_url):
     try:
-        # Un User-Agent un poco más completo para evitar bloqueos básicos
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
         r = requests.get(thread_url, headers=headers, timeout=20)
         soup = BeautifulSoup(r.text, 'html.parser')
         text_lower = soup.get_text().lower()
         
-        # 1. Detección de Español
         has_spanish = any(kw in text_lower for kw in ["spanish", "español", "castellano", "traducido al español", "parche español"])
-        
-        # 2. Detección de Android
-        # Buscamos la palabra "android" o la extensión ".apk" en el texto de la página
         has_android = ("android" in text_lower) or (".apk" in text_lower)
         
-        # 3. Detección de Versión
         version_match = re.search(r'v?(\d+\.\d+(?:\.\d+)?)', text_lower)
         version = version_match.group(0) if version_match else "Desconocida"
         
@@ -74,7 +91,6 @@ def check_updates():
             print(f"🔍 Analizando: {title[:80]}...")
             has_spanish, has_android, version = get_thread_details(link)
             
-            # Condición: Debe tener español Y estar disponible para Android
             if has_spanish and has_android:
                 print(f"🎯 ¡ESPAÑOL + ANDROID DETECTADO!: {title}")
                 msg = f"<b>📱 Nuevo/Actualizado en Español (Android)</b>\n\n"
@@ -84,17 +100,14 @@ def check_updates():
                 send_message(msg)
                 seen_posts.add(post_id)
                 count += 1
-            else:
-                # Opcional: para debug, ver por qué no pasó el filtro
-                # if has_spanish and not has_android:
-                #     print(f"   ⏭️ Descartado (No es Android): {title[:60]}")
-                pass
                 
-        print(f"✅ Revisión terminada. Encontrados {count} juegos en español para Android.")
+        print(f"✅ Revisión terminada. Encontrados {count} juegos nuevos.")
+        # Al terminar, guardamos la memoria actualizada
+        save_seen(seen_posts)
+        print(f"💾 Memoria guardada ({len(seen_posts)} IDs guardados).")
     except Exception as e:
         print(f"❌ Error general: {e}")
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español + Android - Versión Simple y Estable")
-    send_message("🧪 Monitor reiniciado correctamente (Buscando Español + Android)")
+    print("🚀 Monitor F95 Español + Android - Versión con Memoria")
     check_updates()
