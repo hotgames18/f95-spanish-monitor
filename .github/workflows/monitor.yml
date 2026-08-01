@@ -8,6 +8,8 @@ on:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # ESTO ES NUEVO: Le da permiso al bot para modificar el repo
 
     steps:
       - name: Checkout code
@@ -27,3 +29,12 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python main.py
+
+      # ESTOS PASOS NUEVOS GUARDAN EL ARCHIVO memoria.json EN GITHUB
+      - name: Guardar memoria de juegos enviados
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add memoria.json
+          git commit -m "Actualizar memoria de juegos enviados [skip ci]" || echo "No hay cambios en la memoria, omitiendo commit."
+          git push
