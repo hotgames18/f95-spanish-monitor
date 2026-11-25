@@ -24,6 +24,18 @@ jobs:
         run: |
           pip install requests python-telegram-bot==21.4 beautifulsoup4 lxml
 
+      - name: DEBUG: Verificar si el secret llega a GitHub
+        env:
+          F95_COOKIE: ${{ secrets.F95_COOKIE }}
+        run: |
+          if [ -z "$F95_COOKIE" ]; then
+            echo "❌ ERROR CRÍTICO: La variable F95_COOKIE está VACÍA en GitHub Actions."
+            echo "Revisa que el nombre en Settings -> Secrets sea exactamente F95_COOKIE (mayúsculas y guion bajo)."
+            exit 1
+          else
+            echo "✅ ÉXITO: GitHub reconoce la variable F95_COOKIE (longitud: ${#F95_COOKIE} caracteres)."
+          fi
+
       - name: Run F95 Monitor
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
