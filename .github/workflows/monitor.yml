@@ -21,20 +21,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: |
-          pip install requests python-telegram-bot==21.4 beautifulsoup4 lxml
-
-      - name: DEBUG: Verificar si el secret llega a GitHub
-        env:
-          F95_COOKIE: ${{ secrets.F95_COOKIE }}
-        run: |
-          if [ -z "$F95_COOKIE" ]; then
-            echo "❌ ERROR CRÍTICO: La variable F95_COOKIE está VACÍA en GitHub Actions."
-            echo "Revisa que el nombre en Settings -> Secrets sea exactamente F95_COOKIE (mayúsculas y guion bajo)."
-            exit 1
-          else
-            echo "✅ ÉXITO: GitHub reconoce la variable F95_COOKIE (longitud: ${#F95_COOKIE} caracteres)."
-          fi
+        run: pip install requests beautifulsoup4 lxml
 
       - name: Run F95 Monitor
         env:
@@ -48,5 +35,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add memoria.json
-          git commit -m "Actualizar memoria de juegos enviados [skip ci]" || echo "No hay cambios en la memoria, omitiendo commit."
+          git commit -m "Actualizar memoria de juegos enviados [skip ci]" || echo "No hay cambios"
           git push
