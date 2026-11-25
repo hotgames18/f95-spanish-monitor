@@ -20,6 +20,8 @@ HEADERS = {
     'Cache-Control': 'no-cache'
 }
 
+WN_URL = "https://f95zone.to/whats-new/posts/?type=post"
+
 def load_seen():
     try:
         with open(MEMORY_FILE, "r") as f:
@@ -63,8 +65,6 @@ def get_thread_details(session, thread_url):
         return False, False, "Desconocida"
 
 def extract_threads(soup):
-    """Extrae hilos buscando por PATRÓN DE URL, no por clase CSS.
-    A prueba de cambios de tema (UI.X, default, etc.)."""
     found = {}
     for a in soup.find_all('a', href=True):
         m = re.search(r'/threads/[^/]+\.(\d+)', a['href'])
@@ -87,14 +87,12 @@ def check_updates():
         sys.exit(1)
 
     session = requests.Session()
-    # Inyectamos la cookie de sesión Y forzamos que NO nos marque como "sin JS"
     session.cookies.set('xf_user', F95_COOKIE)
     session.cookies.set('xf_nojs', '0')
 
     try:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone (What's New - Threads)...")
-        url_wn = "https://f95zone.to/whats-new/threads/"
-        r = session.get(url_wn, headers=HEADERS, timeout=25)
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone (What's New - Posts)...")
+        r = session.get(WN_URL, headers=HEADERS, timeout=25)
 
         if r.status_code != 200:
             print(f"❌ CRÍTICO: F95Zone devolvió HTTP {r.status_code}.")
@@ -108,7 +106,6 @@ def check_updates():
         threads = extract_threads(soup)
         print(f"🔍 Encontrados {len(threads)} hilos recientes en la página.")
 
-        # DEBUG: si sigue en 0, mostramos qué llegó
         if len(threads) == 0:
             print("⚠️ DEBUG: 0 hilos. Primeros 400 chars del HTML:")
             print(r.text[:400].replace('\n', ' '))
@@ -137,7 +134,7 @@ def check_updates():
         sys.exit(1)
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español + Android - Versión Robusta (por URL, no por clase)")
+    print("🚀 Monitor F95 Español + Android - Versión Robusta (URL verificada + patron de enlace)")
     if not TOKEN or not CHAT_ID:
         print("❌ Faltan TELEGRAM_TOKEN o CHAT_ID")
         sys.exit(1)
