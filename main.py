@@ -3,20 +3,20 @@ import os
 import json
 import sys
 from datetime import datetime
-import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
 import re
 import time
 
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+F95_COOKIE = os.getenv("F95_COOKIE") # NUEVO: Tu cookie de sesión
 MEMORY_FILE = "memoria.json"
 MAX_MEMORY = 500
 
-# Headers más robustos para evitar bloqueos básicos de Cloudflare
+# Headers que simulan un navegador real
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'application/rss+xml, application/xml, text/html',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
     'Cache-Control': 'no-cache'
 }
@@ -47,19 +47,20 @@ def send_message(text):
         }
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code == 200:
-            print("✅ Enviado")
+            print("✅ Enviado a Telegram")
             time.sleep(2.5)
             return True
         else:
-            print(f"❌ Error Telegram: {response.status_code} - {response.text}")
+            print(f"❌ Error Telegram: {response.status_code}")
             return False
     except Exception as e:
         print(f"❌ Excepción enviando mensaje: {e}")
         return False
 
-def get_thread_details(thread_url):
+def get_thread_details(session, thread_url):
     try:
-        r = requests.get(thread_url, headers=HEADERS, timeout=20)
+        # Usamos la misma sesión con cookies para evitar bloqueos al entrar al hilo
+        r = session.get(thread_url, headers=HEADERS, timeout=20)
         if r.status_code != 200:
             print(f"⚠️ No se pudo acceder al hilo (HTTP {r.status_code})")
             return False, False, "Desconocida"
@@ -79,46 +80,55 @@ def get_thread_details(thread_url):
         return False, False, "Desconocida"
 
 def check_updates():
+    if not F95_COOKIE:
+        print("❌ CRÍTICO: Falta la variable de entorno F95_COOKIE en GitHub Secrets.")
+        sys.exit(1)
+
+    # Creamos una sesión persistente para guardar las cookies
+    session = requests.Session()
+    # Inyectamos tu cookie real
+    session.cookies.set('xf_user', F95_COOKIE)
+    
     try:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone...")
-        r = requests.get(
-            "https://f95zone.to/sam/latest_alpha/latest_data.php?cmd=rss&cat=games&rows=60",
-            timeout=25,
-            headers=HEADERS
-        )
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone (What's New)...")
         
-        # BLINDAJE 1: Verificar que la respuesta sea exitosa antes de parsear
+        # URL pública de "What's New" filtrada por hilos (requiere login, por eso usamos la sesión)
+        url_wn = "https://f95zone.to/whats-new/posts/?type=post"
+        r = session.get(url_wn, headers=HEADERS, timeout=25)
+        
         if r.status_code != 200:
-            print(f"❌ CRÍTICO: F95Zone devolvió HTTP {r.status_code}. Posible bloqueo de Cloudflare.")
-            print(f"Respuesta: {r.text[:200]}...")
-            sys.exit(1) # Esto hace que GitHub Actions falle en ROJO
+            print(f"❌ CRÍTICO: F95Zone devolvió HTTP {r.status_code}. La cookie podría haber expirado.")
+            sys.exit(1)
             
-        # BLINDAJE 2: Capturar errores de parseo XML por separado
-        try:
-            root = ET.fromstring(r.text)
-        except ET.ParseError as xml_err:
-            print(f"❌ CRÍTICO: Error al parsear XML. F95Zone probablemente devolvió HTML en lugar de RSS.")
-            print(f"Detalle: {xml_err}")
-            print(f"Contenido recibido: {r.text[:300]}...")
-            sys.exit(1) # Fallar en ROJO
-            
+        # Verificar que no nos redirigió al login (a veces pasa si la cookie es inválida)
+        if "login" in r.url.lower():
+            print("❌ CRÍTICO: F95Zone redirigió al login. La cookie F95_COOKIE no es válida o expiró.")
+            sys.exit(1)
+
+        soup = BeautifulSoup(r.text, 'html.parser')
         count = 0
-        for item in root.findall(".//item"):
-            title_elem = item.find("title")
-            link_elem = item.find("link")
+        
+        # XenForo usa la clase 'structItem-title' para los títulos de los hilos en What's New
+        threads = soup.find_all('a', class_='structItem-title')
+        print(f"🔍 Encontrados {len(threads)} hilos recientes en la página.")
+        
+        for thread in threads:
+            title = thread.text.strip()
+            link = thread.get('href', '')
             
-            if title_elem is None or link_elem is None or not title_elem.text or not link_elem.text:
-                continue
+            # Asegurar que la URL sea absoluta
+            if link.startswith('/'):
+                link = "https://f95zone.to" + link
                 
-            title = title_elem.text.strip()
-            link = link_elem.text.strip()
+            # Extraer el ID del hilo (ej: /threads/game-name.12345/ -> 12345)
+            post_id_match = re.search(r'threads/[^.]+\.(\d+)', link)
+            post_id = post_id_match.group(1) if post_id_match else ""
             
-            post_id = link.split('.')[-1] if '.' in link else ""
-            if post_id in seen_posts:
+            if not post_id or post_id in seen_posts:
                 continue
             
             print(f"🔍 Analizando: {title[:60]}...")
-            has_spanish, has_android, version = get_thread_details(link)
+            has_spanish, has_android, version = get_thread_details(session, link)
             
             if has_spanish and has_android:
                 print(f"🎯 ¡ESPAÑOL + ANDROID DETECTADO!: {title}")
@@ -136,12 +146,11 @@ def check_updates():
         print(f"💾 Memoria guardada ({len(seen_posts)} IDs).")
         
     except Exception as e:
-        # Cualquier otro error no previsto también debe fallar el workflow
         print(f"❌ Error general no manejado: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español + Android - Versión Blindada")
+    print("🚀 Monitor F95 Español + Android - Versión con Cookie de Sesión")
     if not TOKEN or not CHAT_ID:
         print("❌ Faltan variables de entorno TELEGRAM_TOKEN o CHAT_ID")
         sys.exit(1)
