@@ -62,75 +62,82 @@ def get_thread_details(session, thread_url):
     except Exception:
         return False, False, "Desconocida"
 
+def extract_threads(soup):
+    """Extrae hilos buscando por PATRÓN DE URL, no por clase CSS.
+    A prueba de cambios de tema (UI.X, default, etc.)."""
+    found = {}
+    for a in soup.find_all('a', href=True):
+        m = re.search(r'/threads/[^/]+\.(\d+)', a['href'])
+        if not m:
+            continue
+        pid = m.group(1)
+        title = a.get_text(strip=True)
+        if not title or len(title) < 3:
+            continue
+        if pid not in found:
+            link = a['href']
+            if link.startswith('/'):
+                link = "https://f95zone.to" + link
+            found[pid] = (title, link)
+    return found
+
 def check_updates():
     if not F95_COOKIE:
         print("❌ CRÍTICO: Falta F95_COOKIE en GitHub Secrets.")
         sys.exit(1)
 
     session = requests.Session()
+    # Inyectamos la cookie de sesión Y forzamos que NO nos marque como "sin JS"
     session.cookies.set('xf_user', F95_COOKIE)
-    
+    session.cookies.set('xf_nojs', '0')
+
     try:
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone (What's New)...")
-        url_wn = "https://f95zone.to/whats-new/posts/?type=post"
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] 🔄 Revisando F95Zone (What's New - Threads)...")
+        url_wn = "https://f95zone.to/whats-new/threads/"
         r = session.get(url_wn, headers=HEADERS, timeout=25)
-        
+
         if r.status_code != 200:
             print(f"❌ CRÍTICO: F95Zone devolvió HTTP {r.status_code}.")
             sys.exit(1)
-            
+
         if "login" in r.url.lower():
             print("❌ CRÍTICO: F95Zone redirigió al login. La cookie expiró.")
             sys.exit(1)
 
         soup = BeautifulSoup(r.text, 'html.parser')
-        
-        # Intentamos dos clases comunes de XenForo 2
-        threads = soup.find_all('a', class_='structItem-title')
-        if not threads:
-            threads = soup.find_all('a', class_='contentRow-title')
-            
+        threads = extract_threads(soup)
         print(f"🔍 Encontrados {len(threads)} hilos recientes en la página.")
-        
-        # DEBUG: Si sigue siendo 0, mostramos qué nos está enviando F95Zone
+
+        # DEBUG: si sigue en 0, mostramos qué llegó
         if len(threads) == 0:
-            print("⚠️ DEBUG: No se encontraron hilos. Esto es lo que F95Zone está devolviendo:")
-            print(r.text[:600].replace('\n', ' '))
-            print("...\n⚠️ Por favor, copia este mensaje para ajustar el selector CSS.")
+            print("⚠️ DEBUG: 0 hilos. Primeros 400 chars del HTML:")
+            print(r.text[:400].replace('\n', ' '))
 
         count = 0
-        for thread in threads:
-            title = thread.text.strip()
-            link = thread.get('href', '')
-            if link.startswith('/'):
-                link = "https://f95zone.to" + link
-                
-            post_id_match = re.search(r'threads/[^.]+\.(\d+)', link)
-            post_id = post_id_match.group(1) if post_id_match else ""
-            
-            if not post_id or post_id in seen_posts:
+        for pid, (title, link) in threads.items():
+            if pid in seen_posts:
                 continue
-            
             print(f"🔍 Analizando: {title[:60]}...")
             has_spanish, has_android, version = get_thread_details(session, link)
-            
             if has_spanish and has_android:
                 print(f"🎯 ¡ESPAÑOL + ANDROID DETECTADO!: {title}")
-                msg = f"<b>📱 Nuevo/Actualizado en Español (Android)</b>\n\n<b>{title}</b>\n📌 Versión: {version}\n\n🔗 <a href='{link}'>Abrir en F95Zone</a>"
+                msg = (f"<b>📱 Nuevo/Actualizado en Español (Android)</b>\n\n"
+                       f"<b>{title}</b>\n📌 Versión: {version}\n\n"
+                       f"🔗 <a href='{link}'>Abrir en F95Zone</a>")
                 if send_message(msg):
-                    seen_posts.add(post_id)
+                    seen_posts.add(pid)
                     count += 1
-                
+
         print(f"✅ Revisión terminada. Encontrados {count} juegos nuevos.")
         save_seen(seen_posts)
         print(f"💾 Memoria guardada ({len(seen_posts)} IDs).")
-        
+
     except Exception as e:
         print(f"❌ Error general no manejado: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español + Android - Versión con Cookie de Sesión")
+    print("🚀 Monitor F95 Español + Android - Versión Robusta (por URL, no por clase)")
     if not TOKEN or not CHAT_ID:
         print("❌ Faltan TELEGRAM_TOKEN o CHAT_ID")
         sys.exit(1)
