@@ -22,6 +22,13 @@ HEADERS = {
 
 WN_URL = "https://f95zone.to/whats-new/posts/?type=post"
 
+# Dominios de alojamiento de archivos que queremos capturar
+FILE_HOSTS = [
+    'datanodes.to', 'pixeldrain.com', 'mediafire.com', 'gofile.io', 
+    'mega.nz', '1fichier.com', 'dropbox.com', 'workupload.com', 
+    'krakenfiles.com', 'qiwi.gg', 'uploadhaven.com'
+]
+
 def load_seen():
     try:
         with open(MEMORY_FILE, "r") as f:
@@ -54,15 +61,34 @@ def get_thread_details(session, thread_url):
     try:
         r = session.get(thread_url, headers=HEADERS, timeout=20)
         if r.status_code != 200:
-            return False, False, "Desconocida"
+            return False, False, "Desconocida", thread_url
+            
         soup = BeautifulSoup(r.text, 'html.parser')
         text_lower = soup.get_text().lower()
+        
         has_spanish = any(kw in text_lower for kw in ["spanish", "español", "castellano", "traducido al español", "parche español"])
         has_android = ("android" in text_lower) or (".apk" in text_lower)
+        
         version_match = re.search(r'v?(\d+\.\d+(?:\.\d+)?)', text_lower)
-        return has_spanish, has_android, (version_match.group(0) if version_match else "Desconocida")
+        version = version_match.group(0) if version_match else "Desconocida"
+        
+        # Buscar el primer enlace de descarga válido en el hilo
+        download_link = thread_url # Por defecto, usamos el hilo si no encontramos otro
+        for a in soup.find_all('a', href=True):
+            href = a['href'].lower()
+            if any(domain in href for domain in FILE_HOSTS):
+                # Aseguramos que sea URL absoluta
+                if href.startswith('http'):
+                    download_link = href
+                elif href.startswith('//'):
+                    download_link = "https:" + href
+                else:
+                    download_link = "https://f95zone.to" + href
+                break
+                
+        return has_spanish, has_android, version, download_link
     except Exception:
-        return False, False, "Desconocida"
+        return False, False, "Desconocida", thread_url
 
 def extract_threads(soup):
     found = {}
@@ -106,21 +132,23 @@ def check_updates():
         threads = extract_threads(soup)
         print(f"🔍 Encontrados {len(threads)} hilos recientes en la página.")
 
-        if len(threads) == 0:
-            print("⚠️ DEBUG: 0 hilos. Primeros 400 chars del HTML:")
-            print(r.text[:400].replace('\n', ' '))
-
         count = 0
         for pid, (title, link) in threads.items():
             if pid in seen_posts:
                 continue
             print(f"🔍 Analizando: {title[:60]}...")
-            has_spanish, has_android, version = get_thread_details(session, link)
+            has_spanish, has_android, version, download_link = get_thread_details(session, link)
+            
             if has_spanish and has_android:
                 print(f"🎯 ¡ESPAÑOL + ANDROID DETECTADO!: {title}")
+                
+                # Construimos el mensaje con el enlace de descarga extraído
                 msg = (f"<b>📱 Nuevo/Actualizado en Español (Android)</b>\n\n"
-                       f"<b>{title}</b>\n📌 Versión: {version}\n\n"
-                       f"🔗 <a href='{link}'>Abrir en F95Zone</a>")
+                       f"<b>{title}</b>\n"
+                       f"📌 Versión: {version}\n\n"
+                       f"🔗 <a href='{download_link}'>📥 ENLACE DE DESCARGA</a>\n"
+                       f"📝 <a href='{link}'>Ver hilo en F95Zone</a>")
+                
                 if send_message(msg):
                     seen_posts.add(pid)
                     count += 1
@@ -134,7 +162,7 @@ def check_updates():
         sys.exit(1)
 
 if __name__ == "__main__":
-    print("🚀 Monitor F95 Español + Android - Versión Robusta (URL verificada + patron de enlace)")
+    print("🚀 Monitor F95 Español + Android - Versión con Extracción de Enlace de Descarga")
     if not TOKEN or not CHAT_ID:
         print("❌ Faltan TELEGRAM_TOKEN o CHAT_ID")
         sys.exit(1)
